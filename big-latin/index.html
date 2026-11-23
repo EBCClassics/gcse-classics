@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Big Latin Timer</title>
+<style>
+  :root{
+    --bg:#1d1418; --bg2:#2a1b22; --ink:#fbf7f0; --muted:#c9b8ad;
+    --mulberry:#7a1f3d; --mulberry-hi:#a3355b; --gold:#d9a441; --gold-soft:#f4ebd9;
+    --face:#fbf7f0; --face-line:#3a2a30; --warn:#e0573f;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:radial-gradient(ellipse at 50% 30%, var(--bg2), var(--bg) 70%); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex; flex-direction:column; align-items:center; min-height:100%; overflow-x:hidden}
+  header{text-align:center; padding:2.2vh 16px .6vh}
+  h1{font-family:Georgia,"Palatino Linotype",Palatino,serif; font-weight:600; letter-spacing:.18em;
+    margin:0; font-size:clamp(1.6rem, 4.6vh, 3.2rem)}
+  h1 span{color:var(--gold)}
+  .label{color:var(--muted); font-style:italic; font-family:Georgia,serif; font-size:clamp(.95rem,2.3vh,1.4rem);
+    outline:none; min-width:4ch; display:inline-block; border-bottom:1px dashed transparent}
+  .label:hover,.label:focus{border-bottom-color:var(--muted)}
+  main{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; padding:0 16px}
+  .clock{width:min(50vh, 88vw); height:min(50vh, 88vw); position:relative}
+  svg{width:100%; height:100%; display:block; overflow:visible}
+  .digits{font-variant-numeric:tabular-nums; font-family:Georgia,"Palatino Linotype",serif; font-weight:600;
+    font-size:clamp(2.4rem, 9vh, 7rem); letter-spacing:.04em; line-height:1; margin-top:1.4vh; text-align:center}
+  .digits.warn{color:var(--warn)}
+  .finis{font-family:Georgia,serif; color:var(--gold); font-size:clamp(1rem,2.6vh,1.6rem); height:1.4em; text-align:center; margin-top:.4vh; letter-spacing:.08em}
+  .controls{width:min(1000px,100%); padding:1vh 0 1.6vh; display:flex; flex-direction:column; gap:8px; align-items:center; transition:opacity .4s}
+  body.running.idle .controls{opacity:.12}
+  .row{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; align-items:center}
+  button{font:inherit; font-size:1rem; border-radius:10px; border:1px solid #5a4049; background:#33232a; color:var(--ink);
+    padding:.55em .95em; cursor:pointer; min-width:3.2em}
+  button:hover{border-color:var(--gold)}
+  button:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+  button.preset.on{background:var(--gold); color:#2a1b22; border-color:var(--gold); font-weight:700}
+  button.big{font-size:1.15rem; padding:.65em 1.5em; font-weight:700}
+  #go{background:var(--mulberry); border-color:var(--mulberry-hi)}
+  #go:hover{background:var(--mulberry-hi)}
+  .custom{display:flex; gap:6px; align-items:center; color:var(--muted)}
+  .custom input{width:3.6em; font:inherit; font-size:1rem; padding:.5em .4em; border-radius:8px; border:1px solid #5a4049;
+    background:#120c0f; color:var(--ink); text-align:center}
+  .seg{display:inline-flex; border:1px solid #5a4049; border-radius:10px; overflow:hidden}
+  .seg button{border:0; border-radius:0; background:#33232a}
+  .seg button.on{background:var(--gold-soft); color:#2a1b22; font-weight:700}
+  .hint{color:var(--muted); font-size:.82rem; text-align:center}
+  @media (max-width:520px){ button{font-size:.92rem; padding:.5em .7em} }
+</style>
+</head>
+<body>
+<header>
+  <h1>BIG <span>LATIN</span></h1>
+  <div class="label" id="label" contenteditable="true" spellcheck="false" title="Click to change">tempus fugit</div>
+</header>
+<main>
+  <div class="clock" aria-hidden="true">
+    <svg viewBox="-110 -110 220 220" id="svg">
+      <defs>
+        <radialGradient id="rim" cx="50%" cy="40%" r="60%">
+          <stop offset="0" stop-color="#e7c47a"/><stop offset="1" stop-color="#a87a26"/>
+        </radialGradient>
+      </defs>
+      <circle r="106" fill="url(#rim)"/>
+      <circle r="99" fill="var(--face)"/>
+      <path id="sector" fill="var(--mulberry)" opacity=".88" d=""/>
+      <g id="ticks"></g>
+      <g id="nums" font-family="Georgia, 'Palatino Linotype', serif" font-size="11" text-anchor="middle" dominant-baseline="central" fill="var(--face-line)"></g>
+      <line id="hand" x1="0" y1="10" x2="0" y2="-86" stroke="#2a1b22" stroke-width="3.2" stroke-linecap="round"/>
+      <circle r="6.5" fill="var(--gold)" stroke="#2a1b22" stroke-width="1.5"/>
+    </svg>
+  </div>
+  <div class="digits" id="digits" role="timer" aria-live="off">5:00</div>
+  <div class="finis" id="finis" aria-live="polite"></div>
+</main>
+<section class="controls" aria-label="Timer controls">
+  <div class="row">
+    <button id="go" class="big" title="Space">Start</button>
+    <button id="reset" title="R">Reset</button>
+    <button id="minus" title="Take off 30 seconds">−30s</button>
+    <button id="plus" title="Add 30 seconds">+30s</button>
+    <button id="fs" title="F">Full screen</button>
+  </div>
+  <div class="row" id="presets"></div>
+  <div class="row">
+    <label class="custom">Set your own:
+      <input id="cm" type="number" min="0" max="99" value="5" aria-label="minutes"> min
+      <input id="cs" type="number" min="0" max="59" value="0" aria-label="seconds"> sec
+      <button id="set">Set</button>
+    </label>
+    <span class="seg" role="group" aria-label="Sound">
+      <button data-snd="off">Silent</button>
+      <button data-snd="tick">Ticks</button>
+      <button data-snd="music">Music</button>
+    </span>
+  </div>
+  <div class="hint">Space start / pause · R reset · F full screen · click the line under the title to rename it</div>
+</section>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k, d){ try { const v = localStorage.getItem('biglatin.' + k); return v === null ? d : v; } catch(e){ return d; } },
+    set(k, v){ try { localStorage.setItem('biglatin.' + k, v); } catch(e){} }
+  };
+
+  // ---------- clock face ----------
+  const ROMAN = ['XII','I','II','III','IV','V','VI','VII','VIII','IX','X','XI'];
+  const ticks = $('ticks'), nums = $('nums');
+  for (let i = 0; i < 60; i++) {
+    const a = i * 6 * Math.PI / 180, major = i % 5 === 0;
+    const r1 = major ? 84 : 89, r2 = 96;
+    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    l.setAttribute('x1', (r1 * Math.sin(a)).toFixed(2)); l.setAttribute('y1', (-r1 * Math.cos(a)).toFixed(2));
+    l.setAttribute('x2', (r2 * Math.sin(a)).toFixed(2)); l.setAttribute('y2', (-r2 * Math.cos(a)).toFixed(2));
+    l.setAttribute('stroke', '#3a2a30'); l.setAttribute('stroke-width', major ? 2.4 : 1);
+    ticks.appendChild(l);
+    if (major) {
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', (72 * Math.sin(a)).toFixed(2)); t.setAttribute('y', (-72 * Math.cos(a)).toFixed(2));
+      t.textContent = ROMAN[i / 5]; nums.appendChild(t);
+    }
+  }
+  function sectorPath(frac) {
+    if (frac <= 0) return '';
+    if (frac >= 1) return 'M0,-99 A99,99 0 1,1 0,99 A99,99 0 1,1 0,-99 Z';
+    const a = frac * 2 * Math.PI, x = 99 * Math.sin(a), y = -99 * Math.cos(a);
+    return `M0,0 L0,-99 A99,99 0 ${frac > .5 ? 1 : 0},1 ${x.toFixed(3)},${y.toFixed(3)} Z`;
+  }
+
+  // ---------- state ----------
+  let total = Math.max(1, +store.get('total', 300));   // seconds on the clock face
+  let chosen = total;                                  // what Reset returns to
+  let remaining = total * 1000;                        // ms
+  let endAt = 0, running = false, raf = 0, lastWhole = null;
+  let sound = store.get('sound', 'music');
+  const presets = [30, 60, 120, 180, 300, 600, 720, 900];
+
+  const fmt = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  function draw() {
+    const frac = 1 - remaining / (total * 1000);
+    $('sector').setAttribute('d', sectorPath(Math.min(1, Math.max(0, frac))));
+    $('hand').setAttribute('transform', `rotate(${(Math.min(1, frac) * 360).toFixed(2)})`);
+    $('digits').textContent = fmt(remaining);
+    $('digits').classList.toggle('warn', running && remaining <= 10000 && remaining > 0);
+  }
+  function markPreset() {
+    document.querySelectorAll('.preset').forEach(b => b.classList.toggle('on', +b.dataset.s === chosen));
+    $('cm').value = Math.floor(chosen / 60); $('cs').value = chosen % 60;
+  }
+  function setTotal(sec) {
+    sec = Math.max(1, Math.min(99 * 60 + 59, Math.round(sec)));
+    stop(false); total = sec; chosen = sec; remaining = sec * 1000; store.set('total', sec);
+    $('finis').textContent = ''; $('go').textContent = 'Start'; markPreset(); draw();
+  }
+  presets.forEach(s => {
+    const b = document.createElement('button'); b.className = 'preset'; b.dataset.s = s;
+    b.textContent = s < 60 ? `${s} s` : `${s / 60} min`;
+    b.onclick = () => setTotal(s); $('presets').appendChild(b);
+  });
+
+  // ---------- audio (all synthesised; original sounds) ----------
+  let ac = null, master = null, nextBeat = 0, beatNo = 0, schedTimer = 0;
+  function audio() {
+    if (!ac) {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+      ac = new AC(); master = ac.createGain(); master.gain.value = .9; master.connect(ac.destination);
+    }
+    if (ac.state === 'suspended') ac.resume();
+    return ac;
+  }
+  function tone(freq, t, dur, type = 'sine', vol = .2, attack = .005) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + .05);
+  }
+  function click(t, hi) {   // wooden tick / tock
+    const len = .04, buf = ac.createBuffer(1, Math.floor(ac.sampleRate * len), ac.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 6);
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = buf; f.type = 'bandpass'; f.frequency.value = hi ? 2600 : 1700; f.Q.value = 6; g.gain.value = .9;
+    s.connect(f); f.connect(g); g.connect(master); s.start(t);
+  }
+  // Original two-bar loop in D minor, 120 bpm: plucked bass on each beat, a light chord on beats 2 and 4.
+  const BASS = [73.42, 73.42, 110, 110, 116.54, 116.54, 110, 98];            // D D A A Bb Bb A G
+  const CHORD = [[293.66, 349.23, 440], [277.18, 329.63, 440], [293.66, 349.23, 466.16], [277.18, 329.63, 440]];
+  function scheduleMusic() {
+    if (!ac || !running || sound !== 'music') return;
+    while (nextBeat < ac.currentTime + .25) {
+      const i = beatNo % 8;
+      tone(BASS[i], nextBeat, .42, 'triangle', .32, .01);
+      if (i % 2 === 1) CHORD[(i >> 1) % 4].forEach(f => tone(f, nextBeat, .22, 'sine', .045, .01));
+      nextBeat += .5; beatNo++;
+    }
+  }
+  function onSecond(whole) {   // called when the displayed whole second changes
+    if (!ac || sound === 'off') return;
+    const t = ac.currentTime + .01;
+    if (whole <= 10 && whole > 0) tone(880, t, .16, 'sine', .22);      // pips for the last ten seconds
+    else click(t, whole % 2 === 0);
+  }
+  function finale() {
+    if (!ac || sound === 'off') return;
+    const t = ac.currentTime + .02;
+    [587.33, 440, 293.66].forEach((f, i) => tone(f, t + i * .22, .9, 'triangle', .28, .01));
+    [73.42, 146.83, 220, 293.66].forEach(f => tone(f, t + .7, 3.2, 'sine', .2, .02));     // closing bell
+    tone(1174.7, t + .7, 2.2, 'sine', .05, .02);
+  }
+
+  // ---------- run loop ----------
+  function frame() {
+    remaining = endAt - performance.now();
+    const whole = Math.ceil(remaining / 1000);
+    if (whole !== lastWhole && remaining > 0) { if (lastWhole !== null) onSecond(whole); lastWhole = whole; }
+    if (remaining <= 0) { remaining = 0; draw(); done(); return; }
+    draw(); raf = requestAnimationFrame(frame);
+  }
+  function start() {
+    if (remaining <= 0) { remaining = total * 1000; }
+    audio(); running = true; document.body.classList.add('running');
+    endAt = performance.now() + remaining; lastWhole = Math.ceil(remaining / 1000);
+    if (ac) { nextBeat = ac.currentTime + .05; }
+    clearInterval(schedTimer); schedTimer = setInterval(scheduleMusic, 60); scheduleMusic();
+    $('go').textContent = 'Pause'; $('finis').textContent = '';
+    if (ac && sound !== 'off') click(ac.currentTime + .01, true);
+    raf = requestAnimationFrame(frame); idleSoon();
+  }
+  function stop(keep = true) {
+    if (running && keep) remaining = Math.max(0, endAt - performance.now());
+    running = false; cancelAnimationFrame(raf); clearInterval(schedTimer);
+    document.body.classList.remove('running', 'idle'); $('go').textContent = remaining > 0 && remaining < total * 1000 ? 'Resume' : 'Start';
+    draw();
+  }
+  function done() {
+    running = false; cancelAnimationFrame(raf); clearInterval(schedTimer);
+    document.body.classList.remove('running', 'idle');
+    $('go').textContent = 'Start'; $('finis').textContent = 'FINIS · pens down'; finale();
+  }
+  function adjust(delta) {
+    if (running) { endAt += delta * 1000; remaining = endAt - performance.now(); if (remaining <= 0) { endAt = performance.now() + 1; } }
+    else { remaining = Math.max(1000, remaining + delta * 1000); }
+    if (remaining > total * 1000) { total = Math.ceil(remaining / 1000); }
+    draw();
+  }
+
+  // ---------- controls ----------
+  $('go').onclick = () => running ? stop() : start();
+  $('reset').onclick = () => setTotal(chosen);
+  $('plus').onclick = () => adjust(30);
+  $('minus').onclick = () => adjust(-30);
+  $('set').onclick = () => setTotal((+$('cm').value || 0) * 60 + (+$('cs').value || 0));
+  ['cm', 'cs'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $('set').click(); }));
+  $('fs').onclick = () => {
+    const d = document;
+    if (!d.fullscreenElement) (d.documentElement.requestFullscreen || d.documentElement.webkitRequestFullscreen || (() => {})).call(d.documentElement);
+    else (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+  };
+  document.querySelectorAll('[data-snd]').forEach(b => b.onclick = () => {
+    sound = b.dataset.snd; store.set('sound', sound); markSound();
+    if (sound !== 'off') audio();
+    if (sound === 'music' && running && ac) { nextBeat = ac.currentTime + .05; scheduleMusic(); }
+  });
+  function markSound() { document.querySelectorAll('[data-snd]').forEach(b => b.classList.toggle('on', b.dataset.snd === sound)); }
+  document.addEventListener('keydown', e => {
+    if (e.target.isContentEditable || e.target.tagName === 'INPUT') return;
+    if (e.code === 'Space') { e.preventDefault(); $('go').click(); }
+    else if (e.key === 'r' || e.key === 'R') $('reset').click();
+    else if (e.key === 'f' || e.key === 'F') $('fs').click();
+  });
+  // fade controls while running; any movement brings them back
+  let idleT = 0;
+  function idleSoon() { clearTimeout(idleT); document.body.classList.remove('idle'); idleT = setTimeout(() => { if (running) document.body.classList.add('idle'); }, 2500); }
+  ['mousemove', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, idleSoon, { passive: true }));
+
+  // label
+  const lab = $('label'); lab.textContent = store.get('label', 'tempus fugit');
+  lab.addEventListener('input', () => store.set('label', lab.textContent.trim()));
+  lab.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); lab.blur(); } });
+
+  markSound(); markPreset(); draw();
+})();
+</script>
+</body>
+</html>
